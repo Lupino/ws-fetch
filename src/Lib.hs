@@ -4,6 +4,7 @@
 
 module Lib
     ( run
+    , Service (..)
     ) where
 
 import           Control.Concurrent      (forkIO)
@@ -45,11 +46,23 @@ import           Network.Wreq            (Options, customPayloadMethodWith,
                                           responseBody, responseHeader,
                                           responseStatus)
 
-type Service = String
+type ServiceName = String
+
+data Service = Service
+  { serviceName :: ServiceName
+  , serviceMgr  :: Manager
+  , serviceHost :: String
+  }
+
+instance FromJSON Service where
+  parseJSON = withObject "Service" $ \o -> do
+    serviceName <- o .: "service"
+    serviceHost <- o .: "host"
+    return Service {serviceMgr = error "no initial", ..}
 
 data WsRequest = WsRequest
   { reqid      :: String
-  , service    :: Service
+  , service    :: ServiceName
   , pathname   :: String
   , method     :: String
   , reqHeaders :: Value
@@ -109,7 +122,7 @@ fix :: String -> String
 fix ('/':xs) = '/' : xs
 fix xs       = '/' : xs
 
-request :: (Service -> Maybe (String, Manager)) -> WsRequest -> IO WsResponse
+request :: (ServiceName -> Maybe (String, Manager)) -> WsRequest -> IO WsResponse
 request f (WsRequest {..}) = do
   case f service of
     Nothing -> return res
@@ -156,7 +169,7 @@ mergeHeaders opts (Object hm) = foldrWithKey foldFunc opts hm
 
 mergeHeaders opts _ = opts
 
-wsApp :: (Service -> Maybe (String, Manager)) -> ServerApp
+wsApp :: (ServiceName -> Maybe (String, Manager)) -> ServerApp
 wsApp f pending_conn = do
     conn <- acceptRequest pending_conn
     forever $ do
@@ -165,17 +178,25 @@ wsApp f pending_conn = do
         res <- request f req
         sendBinaryData conn $ B.encode res
 
-run :: String -> IO ()
-run root = do
-  mgr <- initMgr root
-  runServer "127.0.0.1" 3500 (wsApp (getService root mgr))
+run :: String -> Int -> [Service] -> IO ()
+run host port srvs = do
+  srvs' <- mapM initService srvs
+  runServer host port (wsApp (getService srvs'))
 
-getService :: String -> Manager -> Service -> Maybe (String, Manager)
-getService host mgr _ = Just (host, mgr)
+getService :: [Service] -> ServiceName -> Maybe (String, Manager)
+getService [] _ = Nothing
+getService (Service {..}:xs) n
+  | serviceName == n = Just (serviceHost, serviceMgr)
+  | otherwise = getService xs n
+
+initService :: Service -> IO Service
+initService srv = do
+  mgr <- initMgr $ serviceHost srv
+  return srv {serviceMgr = mgr}
 
 initMgr :: String -> IO Manager
 initMgr root = newManager settings
-  { managerConnCount = 100
+  { managerConnCount = 1000
   , managerResponseTimeout = responseTimeoutMicro $ 300 * 1000000
   }
 
