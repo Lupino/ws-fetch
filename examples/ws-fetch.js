@@ -29,6 +29,7 @@ export default class WsFetch {
         options.body = buf.slice(h+1, buf.length);
         const f = this._responseCBS[options.resid];
         if (f) {
+          delete this._responseCBS[options.resid];
           f(options);
         } else {
           console.log(options);
@@ -53,19 +54,25 @@ export default class WsFetch {
         options = options || {};
         const re_host = /^https?:\/\/([^/]+)/i;
         const m =re_host.exec(url);
-        options.service = m[1];
-        options.pathname = url.replace(m[0], '');
-        options.reqid = '' + Math.floor(new Date());
-        const req = JSON.stringify(options);
+        const service = m[1];
+        const pathname = url.replace(m[0], '');
+        const reqid = '' + Math.floor(new Date());
+        const req = JSON.stringify({...options, service, pathname, reqid});
 
         const h = Buffer.alloc(4);
         h.writeUInt32BE(req.length);
         const buf = Buffer.from(req);
         const data = Buffer.concat([h, buf]);
-        this._responseCBS[options.reqid] = (options) => {
+        this._responseCBS[reqid] = (options) => {
+          delete this._responseCBS[reqid];
           resolve(new Response(options));
         }
-        this.ws.send(data);
+        try {
+          this.ws.send(data);
+        } catch (e) {
+          delete this._responseCBS[reqid];
+          resolve(fetch(url, options));
+        }
       });
     });
   }
