@@ -2,12 +2,11 @@ import {Buffer} from 'buffer';
 import toBuffer from 'blob-to-buffer';
 
 export default class WsFetch {
-  constructor(host, getService) {
+  constructor(host) {
     this.host = host;
     this.opened = false;
     this.ws = false;
     this._responseCBS = {};
-    this._getService = getService;
   }
 
   connect(cb) {
@@ -16,19 +15,12 @@ export default class WsFetch {
     }
 
     if (this.ws) {
-      const wait = () => {
-        if (this.opened) {
-          return cb(true);
-        }
-        setTimeout(wait, 200);
-      }
-      return;
+      return cb(false);
     }
 
     this.ws = new WebSocket(this.host);
     this.ws.onopen = () => {
       this.opened = true;
-      cb(true)
     }
     this.ws.onmessage = ({data}) => {
       toBuffer(data, (err, buf) => {
@@ -48,27 +40,28 @@ export default class WsFetch {
       this.opened = false;
       this.ws = false;
     }
+    return cb(false);
   }
 
   fetch(url, options) {
-    options = options || {};
-    const re_host = /^https?:\/\/([^\/]+)/i;
-    const m =re_host.exec(url);
-    options.service = this._getService(m[1]);
-    options.pathname = url.replace(m[0], '');
-    options.reqid = '' + Math.floor(new Date());
-    const req = JSON.stringify(options);
-
-    const h = Buffer.alloc(4);
-    h.writeUInt32BE(req.length);
-    const buf = Buffer.from(req);
-    const data = Buffer.concat([h, buf]);
-
     return new Promise((resolve, reject) => {
       this.connect((r) => {
         if (!r) {
-          return reject(new Error('Connection failed.'));
+          return resolve(fetch(url, options));
         }
+
+        options = options || {};
+        const re_host = /^https?:\/\/([^/]+)/i;
+        const m =re_host.exec(url);
+        options.service = m[1];
+        options.pathname = url.replace(m[0], '');
+        options.reqid = '' + Math.floor(new Date());
+        const req = JSON.stringify(options);
+
+        const h = Buffer.alloc(4);
+        h.writeUInt32BE(req.length);
+        const buf = Buffer.from(req);
+        const data = Buffer.concat([h, buf]);
         this._responseCBS[options.reqid] = (options) => {
           resolve(new Response(options));
         }
