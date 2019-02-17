@@ -1,5 +1,7 @@
 import {Buffer} from 'buffer';
 import toBuffer from 'blob-to-buffer';
+import fetch from 'isomorphic-fetch';
+import uuid from 'uuid';
 
 export default class WsFetch {
   constructor(host) {
@@ -7,6 +9,7 @@ export default class WsFetch {
     this.opened = false;
     this.ws = false;
     this._responseCBS = {};
+    this.debug = false;
   }
 
   connect(cb) {
@@ -24,12 +27,14 @@ export default class WsFetch {
     }
     this.ws.onmessage = ({data}) => {
       toBuffer(data, (err, buf) => {
+        if (this.debug) {
+          console.log('receive:', buf.toString());
+        }
         const h = buf[0];
         const options = JSON.parse(buf.slice(1, h + 1).toString());
         options.body = buf.slice(h+1, buf.length);
         const f = this._responseCBS[options.resid];
         if (f) {
-          delete this._responseCBS[options.resid];
           f(options);
         } else {
           console.log(options);
@@ -44,29 +49,38 @@ export default class WsFetch {
     return cb(false);
   }
 
-  fetch(url, options) {
+  fetch(service, url, options) {
     return new Promise((resolve, reject) => {
       this.connect((r) => {
         if (!r) {
           return resolve(fetch(url, options));
         }
 
-        options = options || {};
+        const {method, headers, body} = options || {};
+
+        if (body instanceof FormData) {
+          return resolve(fetch(url, options));
+        }
+
         const re_host = /^https?:\/\/([^/]+)/i;
         const m =re_host.exec(url);
-        const service = m[1];
         const pathname = url.replace(m[0], '');
-        const reqid = '' + Math.floor(new Date());
-        const req = JSON.stringify({...options, service, pathname, reqid});
+        const reqid = '' + uuid.v4();
+        const req = JSON.stringify({headers, method, service, pathname, reqid});
 
         const h = Buffer.alloc(4);
         h.writeUInt32BE(req.length);
-        const buf = Buffer.from(req);
-        const data = Buffer.concat([h, buf]);
+        const data = Buffer.concat([h, Buffer.from(req), Buffer.from(body || '')]);
+
+        if (this.debug) {
+          console.log('send:', data.toString());
+        }
+
         this._responseCBS[reqid] = (options) => {
           delete this._responseCBS[reqid];
           resolve(new Response(options));
         }
+
         try {
           this.ws.send(data);
         } catch (e) {
@@ -96,10 +110,8 @@ class Headers {
     this.options = options;
   }
   get(n) {
-    for (const k in this.options) {
-      if (k.lowerCase() === n.lowerCase()) {
-        return this.options[k];
-      }
+    if (n.toLowerCase() === 'content-type') {
+      return this.options.contentType;
     }
     return '';
   }
