@@ -25,6 +25,7 @@ import qualified Data.ByteString         as B (ByteString)
 import           Data.ByteString.Lazy    as LB (fromStrict, length)
 import           Data.ByteString.Lazy    (ByteString, empty)
 import           Data.CaseInsensitive    (mk)
+import           Data.Char               (toUpper)
 import           Data.HashMap.Strict     (foldrWithKey)
 import           Data.String.Utils       (startswith)
 import           Data.Text               (Text)
@@ -42,9 +43,9 @@ import           Network.WebSockets      (DataMessage (..), ServerApp,
                                           receiveData, runServer,
                                           sendBinaryData)
 import           Network.Wreq            (Options, customPayloadMethodWith,
-                                          defaults, header, manager,
-                                          responseBody, responseHeader,
-                                          responseStatus)
+                                          defaults, getWith, header, manager,
+                                          postWith, putWith, responseBody,
+                                          responseHeader, responseStatus)
 
 type ServiceName = String
 
@@ -122,6 +123,9 @@ fix :: String -> String
 fix ('/':xs) = '/' : xs
 fix xs       = '/' : xs
 
+upper :: String -> String
+upper = map toUpper
+
 request :: (ServiceName -> Maybe (String, Manager)) -> WsRequest -> IO WsResponse
 request f (WsRequest {..}) = do
   case f service of
@@ -131,7 +135,13 @@ request f (WsRequest {..}) = do
         url = host ++ fix pathname
         opts = mergeHeaders (defaults & manager .~ Right mgr) reqHeaders
 
-      e <- try $ customPayloadMethodWith method opts url reqBody
+        req = case upper method of
+                "POST"   -> postWith opts url reqBody
+                "PUT"    -> putWith opts url reqBody
+                "DELETE" -> customPayloadMethodWith "DELETE" opts url reqBody
+                _        -> getWith opts url
+
+      e <- try req
       case e of
         Left (HttpExceptionRequest _ content) ->
           case content of
