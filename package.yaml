@@ -42,7 +42,7 @@ library:
   source-dirs: src
 
 executables:
-  ws-fetch-exe:
+  ws-fetch:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
