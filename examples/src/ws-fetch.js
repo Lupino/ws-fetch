@@ -24,7 +24,7 @@ export default class WsFetch {
     this.ws = new WebSocket(this.host);
     this.ws.onopen = () => {
       this.opened = true;
-    }
+    };
     this.ws.onmessage = ({data}) => {
       toBuffer(data, (err, buf) => {
         if (this.debug) {
@@ -40,12 +40,12 @@ export default class WsFetch {
           console.log(options);
         }
       });
-    }
+    };
 
     this.ws.onclose = () => {
       this.opened = false;
       this.ws = false;
-    }
+    };
     return cb(false);
   }
 
@@ -79,7 +79,7 @@ export default class WsFetch {
         this._responseCBS[reqid] = (options) => {
           delete this._responseCBS[reqid];
           resolve(new Response(options));
-        }
+        };
 
         try {
           this.ws.send(data);

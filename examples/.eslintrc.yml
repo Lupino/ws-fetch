@@ -1,0 +1,42 @@
+env:
+  node: true
+  commonjs: true
+  es6: true
+extends:
+  - 'eslint:recommended'
+  - google
+parser: 'babel-eslint'
+parserOptions:
+  ecmaVersion: 2017
+  ecmaFeatures:
+    experimentalObjectRestSpread: true
+  sourceType: module
+rules:
+  indent:
+    - error
+    - 2
+  linebreak-style:
+    - error
+    - unix
+  quotes:
+    - error
+    - single
+  semi:
+    - error
+    - always
+  require-jsdoc:
+    - warn
+  no-console:
+    - warn
+  valid-jsdoc:
+    - warn
+  max-len:
+    - warn
+  no-empty:
+    - warn
+  camelcase:
+    - warn
+  one-var:
+    - warn
+  no-throw-literal:
+    - warn

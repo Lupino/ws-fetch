@@ -1,0 +1,40 @@
+{
+  "name": "ws-fetch",
+  "version": "1.0.0",
+  "description": "Use websockets fetch",
+  "main": "./ws-fetch.js",
+  "scripts": {
+    "compile": "babel --plugins=transform-runtime --presets=env,stage-3  -D src -d .",
+    "prepare": "npm run compile",
+    "eslint": "eslint src --fix"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^10.0.1",
+    "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-preset-env": "^1.7.0",
+    "babel-preset-stage-3": "^6.24.1",
+    "eslint": "^5.14.0",
+    "eslint-config-google": "^0.12.0"
+  },
+  "dependencies": {
+    "babel-runtime": "^6.26.0",
+    "blob-to-buffer": "^1.2.8",
+    "buffer": "^5.2.1",
+    "isomorphic-fetch": "^2.2.1",
+    "uuid": "^3.3.2"
+  },
+  "author": {
+    "name": "Li Meng Jun",
+    "email": "lmjubuntu@gmail.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Lupino/ws-fetch/issues"
+  },
+  "homepage": "https://github.com/Lupino/ws-fetch/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lupino/ws-fetch.git"
+  }
+}
