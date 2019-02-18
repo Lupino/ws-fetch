@@ -10,6 +10,7 @@ export default class WsFetch {
     this.ws = false;
     this._responseCBS = {};
     this.debug = false;
+    this.disabled = false;
   }
 
   connect(cb) {
@@ -50,6 +51,9 @@ export default class WsFetch {
   }
 
   fetch(service, url, options) {
+    if (this.disabled) {
+      return fetch(url, options);
+    }
     return new Promise((resolve, reject) => {
       this.connect((r) => {
         if (!r) {
