@@ -22,11 +22,14 @@ import           Data.Binary.Get         (getLazyByteString,
                                           getWord32be)
 import           Data.Binary.Put         (putLazyByteString, putWord8)
 import qualified Data.ByteString         as B (ByteString)
-import           Data.ByteString.Lazy    as LB (fromStrict, length, null)
-import           Data.ByteString.Lazy    (ByteString, empty)
+import qualified Data.ByteString.Char8   as B (unpack)
+import           Data.ByteString.Lazy    (ByteString)
+import qualified Data.ByteString.Lazy    as LB (fromStrict, length, null,
+                                                toStrict)
 import           Data.CaseInsensitive    (mk)
-import           Data.Char               (toUpper)
+import           Data.Char               (toLower, toUpper)
 import           Data.HashMap.Strict     (foldrWithKey)
+import           Data.Maybe              (fromMaybe)
 import           Data.String.Utils       (startswith)
 import           Data.Text               (Text)
 import           Data.Text.Encoding      (decodeUtf8, encodeUtf8)
@@ -41,7 +44,7 @@ import qualified Network.HTTP.Types      as N (statusCode)
 import           Network.WebSockets      (DataMessage (..), ServerApp,
                                           WebSocketsData (..), acceptRequest,
                                           receiveData, runServer,
-                                          sendBinaryData)
+                                          sendBinaryData, sendTextData)
 import           Network.Wreq            (Options, customMethodWith,
                                           customPayloadMethodWith, defaults,
                                           header, manager, responseBody,
@@ -61,6 +64,10 @@ instance FromJSON Service where
     serviceHost <- o .: "host"
     return Service {serviceMgr = error "no initial", ..}
 
+
+data DataType = BINARY | TEXT
+  deriving (Show)
+
 data WsRequest = WsRequest
   { reqid      :: String
   , service    :: ServiceName
@@ -69,6 +76,7 @@ data WsRequest = WsRequest
   , reqHeaders :: Value
   , reqBody    :: ByteString
   }
+  deriving (Show)
 
 instance FromJSON WsRequest where
   parseJSON = withObject "WsRequest" $ \o -> do
@@ -77,7 +85,11 @@ instance FromJSON WsRequest where
     pathname   <- o .:? "pathname" .!= "/"
     method     <- o .:? "method"   .!= "GET"
     reqHeaders <- o .:? "headers"  .!= Null
-    return WsRequest{ reqBody = empty, .. }
+    body       <- o .:? "body"     .!= ""
+    return WsRequest
+      { reqBody = LB.fromStrict $ encodeUtf8 body
+      , ..
+      }
 
 instance Binary WsRequest where
   get = do
@@ -91,8 +103,18 @@ instance Binary WsRequest where
 
   put = error "no implement"
 
+defaultWsRequest :: WsRequest
+defaultWsRequest = WsRequest
+  { reqid      = "unkonw"
+  , service    = "unkonw"
+  , pathname   = "/"
+  , method     = "GET"
+  , reqHeaders = Null
+  , reqBody    = ""
+  }
+
 instance WebSocketsData WsRequest where
-  fromDataMessage (Text bl _) = B.decode bl
+  fromDataMessage (Text bl _) = fromMaybe defaultWsRequest $ A.decode bl
   fromDataMessage (Binary bl) = B.decode bl
   fromLazyByteString bl       = B.decode bl
   toLazyByteString _          = error "no implement"
@@ -101,15 +123,19 @@ data WsResponse = WsResponse
   { resid       :: String
   , statusCode  :: Int
   , contentType :: B.ByteString
+  , resType     :: DataType
   , resBody     :: ByteString
   }
+  deriving (Show)
 
 instance ToJSON WsResponse where
-  toJSON WsResponse{..} = object
+  toJSON WsResponse{..} = object $
     [ "resid"       .= resid
     , "statusCode"  .= statusCode
     , "contentType" .= decodeUtf8 contentType
-    ]
+    ] ++ case resType of
+           TEXT -> ["body" .= decodeUtf8 (LB.toStrict resBody)]
+           _    -> []
 
 instance Binary WsResponse where
   get = error "no implement"
@@ -125,6 +151,20 @@ fix xs       = '/' : xs
 
 upper :: String -> String
 upper = map toUpper
+
+lower :: String -> String
+lower = map toLower
+
+getDataType :: B.ByteString -> DataType
+getDataType bs
+  | startswith "application/json" s = TEXT
+  | startswith "text"             s = TEXT
+  | otherwise = BINARY
+  where s = lower $ B.unpack bs
+
+addDataType :: WsResponse -> WsResponse
+addDataType ws | LB.null (resBody ws) = ws { resType=TEXT }
+               | otherwise = ws {resType = getDataType $ contentType ws}
 
 request :: (ServiceName -> Maybe (String, Manager)) -> WsRequest -> IO WsResponse
 request f (WsRequest {..}) = do
@@ -166,6 +206,7 @@ request f (WsRequest {..}) = do
   where res = WsResponse
                { resid = reqid
                , statusCode = 200
+               , resType = TEXT
                , contentType = "application/json"
                , resBody = A.encode $ object ["err" .= ("Not Support" :: String)]
                }
@@ -184,8 +225,10 @@ wsApp f pending_conn = do
     forever $ do
       req <- receiveData conn :: IO WsRequest
       void $ forkIO $ do
-        res <- request f req
-        sendBinaryData conn $ B.encode res
+        res <- addDataType <$> request f req
+        case resType res of
+          TEXT   -> sendTextData conn $ A.encode res
+          BINARY -> sendBinaryData conn $ B.encode res
 
 run :: String -> Int -> [Service] -> IO ()
 run host port srvs = do
