@@ -22,7 +22,7 @@ import           Data.Binary.Get         (getLazyByteString,
                                           getWord32be)
 import           Data.Binary.Put         (putLazyByteString, putWord8)
 import qualified Data.ByteString         as B (ByteString)
-import           Data.ByteString.Lazy    as LB (fromStrict, length)
+import           Data.ByteString.Lazy    as LB (fromStrict, length, null)
 import           Data.ByteString.Lazy    (ByteString, empty)
 import           Data.CaseInsensitive    (mk)
 import           Data.Char               (toUpper)
@@ -42,9 +42,9 @@ import           Network.WebSockets      (DataMessage (..), ServerApp,
                                           WebSocketsData (..), acceptRequest,
                                           receiveData, runServer,
                                           sendBinaryData)
-import           Network.Wreq            (Options, customPayloadMethodWith,
-                                          defaults, getWith, header, manager,
-                                          postWith, putWith, responseBody,
+import           Network.Wreq            (Options, customMethodWith,
+                                          customPayloadMethodWith, defaults,
+                                          header, manager, responseBody,
                                           responseHeader, responseStatus)
 
 type ServiceName = String
@@ -135,11 +135,10 @@ request f (WsRequest {..}) = do
         url = host ++ fix pathname
         opts = mergeHeaders (defaults & manager .~ Right mgr) reqHeaders
 
-        req = case upper method of
-                "POST"   -> postWith opts url reqBody
-                "PUT"    -> putWith opts url reqBody
-                "DELETE" -> customPayloadMethodWith "DELETE" opts url reqBody
-                _        -> getWith opts url
+        m = upper method
+
+        req = if LB.null reqBody then customMethodWith m opts url
+                                 else customPayloadMethodWith m opts url reqBody
 
       e <- try req
       case e of
