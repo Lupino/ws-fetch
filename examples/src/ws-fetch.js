@@ -26,21 +26,34 @@ export default class WsFetch {
     this.ws.onopen = () => {
       this.opened = true;
     };
-    this.ws.onmessage = ({data}) => {
-      toBuffer(data, (err, buf) => {
+    this.ws.onmessage = ({data, ...opts}) => {
+      if (data instanceof Blob) {
+        toBuffer(data, (err, buf) => {
+          if (this.debug) {
+            console.log('receive:', buf.toString());
+          }
+          const h = buf[0];
+          const options = JSON.parse(buf.slice(1, h + 1).toString());
+          options.body = buf.slice(h+1, buf.length);
+          const f = this._responseCBS[options.resid];
+          if (f) {
+            f(options);
+          } else {
+            console.log(options);
+          }
+        });
+      } else {
+        const options = JSON.parse(data);
         if (this.debug) {
-          console.log('receive:', buf.toString());
+          console.log('receive:', options);
         }
-        const h = buf[0];
-        const options = JSON.parse(buf.slice(1, h + 1).toString());
-        options.body = buf.slice(h+1, buf.length);
         const f = this._responseCBS[options.resid];
         if (f) {
           f(options);
         } else {
           console.log(options);
         }
-      });
+      }
     };
 
     this.ws.onclose = () => {
@@ -66,18 +79,29 @@ export default class WsFetch {
           return resolve(fetch(url, options));
         }
 
+
+        let isText = true;
+        if (body && typeof body !== 'string') {
+          isText = false;
+        }
+
         const re_host = /^https?:\/\/([^/]+)/i;
         const m =re_host.exec(url);
         const pathname = url.replace(m[0], '');
         const reqid = '' + uuid.v4();
-        const req = JSON.stringify({headers, method, service, pathname, reqid});
 
-        const h = Buffer.alloc(4);
-        h.writeUInt32BE(req.length);
-        const data = Buffer.concat([h, Buffer.from(req), Buffer.from(body || '')]);
+        const extra = isText ? {body} : {};
+
+        let req = JSON.stringify({headers, method, service, pathname, reqid, ...extra});
+
+        if (!isText) {
+          const h = Buffer.alloc(4);
+          h.writeUInt32BE(req.length);
+          req = Buffer.concat([h, Buffer.from(req), Buffer.from(body || '')]);
+        }
 
         if (this.debug) {
-          console.log('send:', data.toString());
+          console.log('send:', req.toString());
         }
 
         this._responseCBS[reqid] = (options) => {
@@ -86,7 +110,7 @@ export default class WsFetch {
         };
 
         try {
-          this.ws.send(data);
+          this.ws.send(req);
         } catch (e) {
           delete this._responseCBS[reqid];
           resolve(fetch(url, options));
