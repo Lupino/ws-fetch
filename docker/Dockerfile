@@ -1,5 +1,5 @@
 FROM alpine:3.8
-ENV VERSION v0.1.0.0
+ENV VERSION v0.1.1.0
 RUN apk update && \
     apk add wget && \
     wget https://github.com/Lupino/ws-fetch/releases/download/$VERSION/ws-fetch-linux-$VERSION.gz && \
