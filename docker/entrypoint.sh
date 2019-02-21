@@ -28,7 +28,6 @@ fi
 cat ${configfile}
 
 if [ "$1" = 'ws-fetch' ]; then
-  pipeEnvironmentVariables
   exec /usr/bin/ws-fetch ${configfile}
 fi
 
