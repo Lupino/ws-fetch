@@ -11,10 +11,12 @@ import           Control.Concurrent      (forkIO)
 import           Control.Exception       (try)
 import           Control.Lens            ((&), (.~), (^.))
 import           Control.Monad           (forever, void)
-import           Data.Aeson              (FromJSON (..), ToJSON (..),
+import           Data.Aeson              (FromJSON (..), Key, ToJSON (..),
                                           Value (..), object, withObject, (.!=),
                                           (.:), (.:?), (.=))
 import qualified Data.Aeson              as A (decode, encode)
+import           Data.Aeson.Key          (toText)
+import           Data.Aeson.KeyMap       (foldrWithKey)
 import           Data.Binary             (Binary (..))
 import qualified Data.Binary             as B (decode, encode)
 import           Data.Binary.Get         (getLazyByteString,
@@ -28,14 +30,12 @@ import qualified Data.ByteString.Lazy    as LB (fromStrict, length, null,
                                                 toStrict)
 import           Data.CaseInsensitive    (mk)
 import           Data.Char               (toLower, toUpper)
-import           Data.HashMap.Strict     (foldrWithKey)
 import           Data.Maybe              (fromMaybe)
 import           Data.String.Utils       (startswith)
-import           Data.Text               (Text)
 import           Data.Text.Encoding      (decodeUtf8, encodeUtf8)
 import           Network.HTTP.Client     (HttpException (..),
-                                          HttpExceptionContent (..))
-import           Network.HTTP.Client     (Manager, defaultManagerSettings,
+                                          HttpExceptionContent (..), Manager,
+                                          defaultManagerSettings,
                                           managerConnCount,
                                           managerResponseTimeout, newManager,
                                           responseTimeoutMicro)
@@ -213,8 +213,8 @@ request f (WsRequest {..}) = do
 
 mergeHeaders :: Options -> Value -> Options
 mergeHeaders opts (Object hm) = foldrWithKey foldFunc opts hm
-  where foldFunc :: Text -> Value -> Options -> Options
-        foldFunc k (String v) opt = opt & header (mk $ encodeUtf8 k) .~ [encodeUtf8 v]
+  where foldFunc :: Key -> Value -> Options -> Options
+        foldFunc k (String v) opt = opt & header (mk . encodeUtf8 $ toText k) .~ [encodeUtf8 v]
         foldFunc _ _ opt          = opt
 
 mergeHeaders opts _ = opts

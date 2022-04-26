@@ -1,5 +1,5 @@
 name:                ws-fetch
-version:             0.1.1.0
+version:             0.1.1.2
 github:              "Lupino/ws-fetch"
 license:             BSD3
 author:              "Lupino"
@@ -26,7 +26,6 @@ dependencies:
 - binary
 - wreq
 - lens
-- unordered-containers
 - case-insensitive
 - text
 - http-client

@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-13.7
+resolver: lts-19.4
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -69,11 +69,3 @@ nix:
     enable: true
     packages:
     - zlib
-
-ghc-options:
-  "$locals": "-threaded -rtsopts -with-rtsopts=-N -Wunused-do-bind -Wname-shadowing -Wunused-imports -Wincomplete-patterns -Wunused-matches -Wunused-local-binds"
-
-package-indices:
-  - name: USTC
-    download-prefix: https://mirrors.ustc.edu.cn/hackage/package/
-    http: https://mirrors.ustc.edu.cn/hackage/01-index.tar.gz
