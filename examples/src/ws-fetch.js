@@ -124,6 +124,8 @@ class Response {
   constructor(options) {
     this.options = options;
     this.headers = new Headers(options);
+    this.ok = options.statusCode < 400;
+    this.status = options.statusCode;
   }
   async json() {
     return JSON.parse(this.options.body.toString());
